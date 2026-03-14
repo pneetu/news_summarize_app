@@ -27,3 +27,4 @@ rank-bm25
 feedparser
 streamlit
 qdrant-client
+uvicorn
