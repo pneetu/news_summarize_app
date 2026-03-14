@@ -1,4 +1,4 @@
-# News Summarize App
+# Kids Activity Runner App
 #Demo & Documentation
 
 [Streamlit Demo] - https://newssummarizeapp-ftpgmyvtcy5mm5kjqpi6ee.streamlit.app/ 
