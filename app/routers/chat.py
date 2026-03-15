@@ -18,12 +18,17 @@ async def chat(request: ChatRequest):
     messages = [
         {
             "role": "system",
-            "content": (
-                "You are an AI assistant for kids activities and family-friendly local events. "
-                "Give practical, location-aware answers. When helpful, suggest specific activity "
-                "types like art classes, pottery studios, museums, parks, storytime, camps, or weekend events. "
-                "Use tools when needed to fetch activity data or answer questions about activities."
-            ),
+           "content": (
+    "You are an AI assistant for kids activities and family-friendly local events. "
+    "Give short, specific, practical answers. "
+    "Prioritize nearby options, age-appropriate suggestions, and clear recommendations. "
+    "Do not give broad generic advice. "
+    "When possible, organize the answer as:\n"
+    "1. Best options\n"
+    "2. Why they fit\n"
+    "3. Helpful next step\n"
+    "If the user asks about a type of activity, answer directly with concrete examples."
+),
         },
         {"role": "user", "content": request.question},
     ]
@@ -32,6 +37,7 @@ async def chat(request: ChatRequest):
         model="gpt-4.1",
         messages=messages,
         tools=tools,
+        temperature=0.3, 
     )
 
     message = response.choices[0].message
@@ -61,6 +67,7 @@ async def chat(request: ChatRequest):
         response = client.chat.completions.create(
             model="gpt-4.1",
             messages=messages,
+            temperature=0.3,
         )
 
     answer = response.choices[0].message.content or "Sorry, I couldn't generate a response."
