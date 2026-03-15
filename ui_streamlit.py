@@ -23,13 +23,8 @@ st.markdown(
       .stDeployButton {display:none;}
       .viewerBadge_container__1QSob {display:none;}
 
-      .center-title {
-        text-align: center;
-        margin-top: -15px;
-      }
-
       .block-container {
-        padding-top: 0.5rem !important;
+        padding-top: 0.8rem !important;
       }
 
       [data-testid="stAppViewContainer"] {
@@ -42,10 +37,30 @@ st.markdown(
 
       h1 { color: #2C2C54 !important; }
 
-      [data-testid="stRadio"] > div {
-        background: #F1F3F6 !important;
-        padding: 8px 12px !important;
-        border-radius: 12px !important;
+      .hero-title {
+        text-align: center;
+        margin-bottom: 0.2rem;
+      }
+
+      .hero-subtitle {
+        text-align: center;
+        font-size: 18px;
+        color: #444;
+        margin-top: 0;
+        margin-bottom: 0.4rem;
+      }
+
+      .hero-date {
+        text-align: center;
+        color: #666;
+        margin-top: 0;
+        margin-bottom: 1.2rem;
+      }
+
+      .demo-label {
+        font-weight: 600;
+        margin-top: 0.4rem;
+        margin-bottom: 0.5rem;
       }
     </style>
     """,
@@ -53,7 +68,7 @@ st.markdown(
 )
 
 
-def fetch_activity_data(limit=2, include_summary=True):
+def fetch_activity_data(limit=4, include_summary=True):
     try:
         response = requests.get(
             f"{API_BASE_URL}/api/news",
@@ -81,77 +96,46 @@ def ask_general_question(question: str):
         data = response.json()
         return data.get("answer", "No answer returned from backend.")
     except requests.exceptions.RequestException as e:
-        return f"Backend error while answering general question: {e}"
-
-
-def ask_activity_rag(question: str, top_k: int = 5):
-    try:
-        response = requests.post(
-            f"{API_BASE_URL}/api/rag/answer",
-            json={
-                "question": question,
-                "top_k": top_k,
-            },
-            timeout=60,
-        )
-        response.raise_for_status()
-        return response.json()
-    except requests.exceptions.RequestException as e:
-        return {
-            "answer": f"Backend error while answering activity question: {e}",
-            "sources": [],
-        }
+        return f"Backend error while answering question: {e}"
 
 
 if "chat" not in st.session_state:
     st.session_state.chat = []
 
-LOCATION_OPTIONS = [
-    "Sunnyvale",
-    "San Jose",
-    "Mountain View",
-    "Palo Alto",
-    "Santa Clara",
-    "Bay Area"
-]
-
 left_header, center_header, right_header = st.columns([1, 5, 1])
 
 with left_header:
     image_path = os.path.join(os.path.dirname(__file__), "assets", "kiddo.png")
-    st.image(image_path, width=290)
+    if os.path.exists(image_path):
+        st.image(image_path, width=220)
 
 with center_header:
     st.markdown(
-        "<h1 style='text-align:center; margin-bottom:0px;'>Kids Activity Runner</h1>",
+        "<h1 class='hero-title'>Kids Activity Runner</h1>",
         unsafe_allow_html=True
     )
 
     st.markdown(
-        "<p style='text-align:center; font-size:18px; color:#444; margin-top:4px;'>Find family-friendly activities near you using AI</p>",
+        "<p class='hero-subtitle'>Find family-friendly activities near you using AI</p>",
         unsafe_allow_html=True
     )
 
     today = datetime.now().strftime("%b %d %Y")
-
     st.markdown(
-        f"<p style='text-align:center; color:#666; margin-top:0px;'>{today}</p>",
+        f"<p class='hero-date'>{today}</p>",
         unsafe_allow_html=True
     )
 
 with st.spinner("Fetching activity ideas..."):
-    data = fetch_activity_data(limit=2, include_summary=True)
+    data = fetch_activity_data(limit=4, include_summary=True)
 
-activities = data.get("articles", [])[:2]
-summary_text = data.get("summary", "")
+activities = data.get("articles", [])[:4]
 
-left, right = st.columns([1, 3], gap="large")
+left, right = st.columns([1, 2.2], gap="large")
 
 with left:
-    st.subheader("📍 Activity Summary")
-    st.write(summary_text if summary_text else "No summary available.")
-
     st.subheader("📰 Suggested Activities")
+
     if not activities:
         st.warning("No activities returned.")
     else:
@@ -164,26 +148,18 @@ with left:
                     st.link_button("View activity", a["url"])
 
 with right:
-    selected_location = st.selectbox("Choose area", LOCATION_OPTIONS, index=0)
+    st.markdown("<div class='demo-label'>Try one of these:</div>", unsafe_allow_html=True)
+    d1, d2, d3, d4 = st.columns(4)
 
-    mode = st.radio(
-        "Chat mode",
-        ["General question", "Ask about kids activities (RAG)"],
-        horizontal=True,
-        label_visibility="collapsed"
-    )
-
-    st.markdown("**Demo questions:**")
-    d1, d2, d3 = st.columns(3)
-
-    if d1.button("Weekend activities"):
-        question = "What family activities are happening this weekend?"
-    elif d2.button("Kids museums"):
-        question = "Are there kids museums or science centers nearby?"
-    elif d3.button("Outdoor parks"):
-        question = "What outdoor parks are good for kids nearby?"
-    else:
-        question = None
+    question = None
+    if d1.button("🎨 Art classes"):
+        question = "Are there any art classes, painting sessions, or pottery activities for kids nearby?"
+    elif d2.button("🏞 Outdoor fun"):
+        question = "What outdoor activities or parks are good for kids nearby?"
+    elif d3.button("🧪 Museums"):
+        question = "Are there any kids museums or science centers nearby?"
+    elif d4.button("🎪 Weekend events"):
+        question = "What family-friendly events are happening this weekend nearby?"
 
     st.divider()
 
@@ -207,36 +183,18 @@ with right:
         unsafe_allow_html=True,
     )
 
-    typed_question = st.chat_input("Ask about kids activities near your area...")
+    typed_question = st.chat_input("Ask about kids activities near you...")
 
     if typed_question:
         question = typed_question
 
     if question:
-        question_with_location = f"{question} Default location: {selected_location}."
         st.session_state.chat.append(("user", question))
 
         with st.chat_message("assistant", avatar="✨"):
             with st.spinner("Thinking..."):
-                if mode == "Ask about kids activities (RAG)":
-                    result = ask_activity_rag(question_with_location, top_k=5)
-                    answer = result.get("answer", "")
-                    sources = result.get("sources", [])
-
-                    st.write(answer if answer else "I couldn't find relevant activity information.")
-
-                    if sources:
-                        st.caption("Activity Sources:")
-                        for s in sources[:5]:
-                            with st.container(border=True):
-                                st.markdown(f"**{s.get('title', 'Untitled')}**")
-                                if s.get("published"):
-                                    st.caption(s["published"])
-                                if s.get("url"):
-                                    st.link_button("Open source", s["url"])
-                else:
-                    answer = ask_general_question(question_with_location)
-                    st.write(answer)
+                answer = ask_general_question(question)
+                st.write(answer)
 
         st.session_state.chat.append(("assistant", answer))
         st.rerun()
