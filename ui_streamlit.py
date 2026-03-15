@@ -95,7 +95,7 @@ def fetch_activity_data(limit=4, include_summary=True):
                 "limit": limit,
                 "include_summary": include_summary,
             },
-            timeout=60,
+            timeout=25,
         )
         response.raise_for_status()
         return response.json()
@@ -109,7 +109,7 @@ def ask_general_question(question: str):
         response = requests.post(
             f"{API_BASE_URL}/api/chat",
             json={"question": question},
-            timeout=60,
+            timeout=25,
         )
         response.raise_for_status()
         data = response.json()
@@ -146,6 +146,7 @@ with center_header:
     )
 
 with st.spinner("Fetching activity ideas..."):
+   
     data = fetch_activity_data(limit=4, include_summary=True)
 
 activities = data.get("articles", [])[:4]
