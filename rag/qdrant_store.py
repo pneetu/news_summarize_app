@@ -3,7 +3,9 @@ import uuid
 from typing import List, Dict, Any, Optional
 from qdrant_client import QdrantClient
 from qdrant_client.http.models import Distance, VectorParams, PointStruct
-QDRANT_URL = os.getenv("QDRANT_URL")  #http://localhost:6333
+
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_API_KEY = os.getenv("QDRANT_API_KEY")
 QDRANT_HOST = os.getenv("QDRANT_HOST", "localhost")
 QDRANT_PORT = int(os.getenv("QDRANT_PORT", "6333"))
 class QdrantVectorStore:
@@ -12,7 +14,10 @@ class QdrantVectorStore:
         self.dim = dim
         # Prefer QDRANT_URL if provided
         if QDRANT_URL:
-            self.client = QdrantClient(url=QDRANT_URL)
+            self.client = QdrantClient(
+                url=QDRANT_URL,
+                api_key=QDRANT_API_KEY,
+            )
         else:
             self.client = QdrantClient(host=QDRANT_HOST, port=QDRANT_PORT)
         if recreate:
