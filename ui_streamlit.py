@@ -184,21 +184,21 @@ with right:
         question = "What outdoor parks are good for kids nearby?"
     else:
         question = None
+    chat_area = st.container()
+    st.divider()
 
     typed_question = st.chat_input("Ask about kids activities near your area...")
 
     if typed_question:
         question = typed_question
 
-    st.divider()
-
-    chat_area = st.container()
+    
 
     with chat_area:
-        for role, msg in st.session_state.chat:
-            avatar = "🧑" if role == "user" else "✨"
-            with st.chat_message(role, avatar=avatar):
-                st.write(msg)
+         for role, msg in reversed(st.session_state.chat):
+             avatar = "🧑" if role == "user" else "✨"
+             with st.chat_message(role, avatar=avatar):
+                 st.write(msg)
 
     if question:
         question_with_location = f"{question} Default location: {selected_location}."
