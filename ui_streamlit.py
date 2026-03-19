@@ -5,13 +5,16 @@ import requests
 
 st.set_page_config(page_title="Kids Activity Runner", layout="wide")
 
-try:
-    API_BASE_URL = st.secrets["API_BASE_URL"]
-except Exception:
-    API_BASE_URL = os.getenv(
-        "API_BASE_URL",
-        "https://kids-activity-runner-api1.onrender.com"
-    )
+#try:
+    #API_BASE_URL = st.secrets["API_BASE_URL"]
+#except Exception:
+
+    #API_BASE_URL = os.getenv(
+       # "API_BASE_URL",
+        #"https://kids-activity-runner-api1.onrender.com"
+    #)
+API_BASE_URL = "https://kids-activity-runner-api.onrender.com"
+
 
 st.markdown(
     """
@@ -113,7 +116,7 @@ def ask_general_question(question: str):
         )
         response.raise_for_status()
         data = response.json()
-        return data.get("answer", "No answer returned from backend.")
+        return data.get("answer", {})
     except requests.exceptions.RequestException as e:
         return f"Backend error while answering question: {e}"
 
@@ -149,7 +152,7 @@ with st.spinner("Fetching activity ideas..."):
    
     data = fetch_activity_data(limit=4, include_summary=True)
 
-activities = data.get("articles", [])[:4]
+activities = data.get("articles", [])[:2]
 
 left, right = st.columns([1, 2.2], gap="large")
 
@@ -179,28 +182,52 @@ with left:
                st.link_button("Open Activity", url)
 
 with right:
-    st.markdown("<div class='demo-label'>Try one of these:</div>", unsafe_allow_html=True)
+    st.markdown("<div class='demo-label'>Enter your city: </div>", unsafe_allow_html=True)
+    location = st.text_input("Enter your city", value="Sunnyvale", label_visibility="collapsed")
+    st.markdown("<br>", unsafe_allow_html=True)
+    st.markdown("<div class='demo-label'>Try one of theese:</div>", unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
+
     d1, d2, d3, d4 = st.columns(4)
 
     question = None
     if d1.button("🎨 Art classes"):
-        question = "Are there any art classes, painting sessions, or pottery activities for kids nearby?"
-    elif d2.button("🏞 Outdoor fun"):
-        question = "What outdoor activities or parks are good for kids nearby?"
-    elif d3.button("🧪 Museums"):
-        question = "Are there any kids museums or science centers nearby?"
-    elif d4.button("🎪 Weekend events"):
-        question = "What family-friendly events are happening this weekend nearby?"
+        question = f"kids art classes near {location}"
+        display_text = "Are there any art classes for kids nearby?"
 
+    elif d2.button("🌄 Outdoor fun"):
+        question = f"kids parks playgrounds near {location}"
+        display_text = "Are there any park playgrounds for kids nearby?"
+
+    elif d3.button("🖼 Museums"):
+        question = f"children's museums near {location}"
+        display_text = "Are there any children's museums for kids nearby?"
+
+    elif d4.button("🎪 Weekend events"):
+        question = f"family events this weekend near {location}"
+        display_text = "Are there any family events this weekend nearby?"
     st.divider()
 
     chat_area = st.container()
+    #if st.button("Clear chat"):
+        #st.session_state.chat = []
+        #st.rerun()
 
     with chat_area:
         for role, msg in st.session_state.chat:
             avatar = "🧑" if role == "user" else "✨"
             with st.chat_message(role, avatar=avatar):
-                st.write(msg)
+                if role == "assistant" and isinstance(msg, dict) and "results" in msg:
+                    for place in msg["results"]:
+                        st.subheader(place.get("name", ""))
+                        st.write(place.get("reason", ""))
+                        website = place.get("website", "")
+                        if website:
+                            st.markdown(f"[Visit Website]({website})")
+                        else:
+                            st.caption("Website not available")
+                else:
+                    st.write(msg)
 
     st.markdown(
         """
@@ -217,7 +244,7 @@ with right:
     typed_question = st.chat_input("Ask about kids activities near you...")
 
     if typed_question:
-        question = typed_question
+        question = f"{typed_question} near {location}"
 
     if question:
         st.session_state.chat.append(("user", question))
@@ -225,7 +252,28 @@ with right:
         with st.chat_message("assistant", avatar="✨"):
             with st.spinner("Thinking..."):
                 answer = ask_general_question(question)
-                st.write(answer)
+                if isinstance(answer, dict) and "results" in answer:
+                    for place in answer["results"]:
+                        st.subheader(place.get("name", ""))
+                        reason = place.get("reason", "")
+                        if reason:
+                            st.write(reason)
 
-        st.session_state.chat.append(("assistant", answer))
+                        website = place.get("website", "")
+                        if website:
+                            label = "Visit Website"
+                            if "google.com/maps" in website or "maps.google" in website:
+                                label = "View on Map"
+
+                            st.markdown(f"[{label}]({website})")
+                        else:
+                            st.caption("Official website not available")
+
+                else:
+                    st.write(answer)     
+
+        if isinstance(answer, dict) and "results" in answer:
+            st.session_state.chat.append(("assistant", answer))
+        else:
+            st.session_state.chat.append(("assistant", str(answer)))
         st.rerun()

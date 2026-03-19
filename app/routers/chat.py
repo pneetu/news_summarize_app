@@ -3,7 +3,9 @@ from pydantic import BaseModel
 from app.tools.tool_definitions import tools
 from app.tools.tool_runner import run_tool
 import json
+import requests
 from openai import OpenAI
+from app.services.google_places import search_places
 
 client = OpenAI()
 router = APIRouter()
@@ -13,22 +15,127 @@ class ChatRequest(BaseModel):
     question: str
 
 
+# URL validator
+def is_valid_website(url: str) -> bool:
+    try:
+        if not url:
+            return False
+
+        if not url.startswith(("http://", "https://")):
+            url = "https://" + url
+
+        response = requests.get(url, timeout=5, allow_redirects=True)
+
+        bad_signs = [
+            "domain may be for sale",
+            "buy this domain",
+            "resultsfinder",
+            "parked",
+        ]
+
+        final_url = str(response.url).lower()
+        page_text = response.text.lower()[:1000]
+
+        if response.status_code >= 400:
+            return False
+
+        if any(bad in final_url for bad in bad_signs):
+            return False
+
+        if any(bad in page_text for bad in bad_signs):
+            return False
+
+        return True
+
+    except Exception:
+        return False
+
+def explain_places_with_ai(user_question: str, places: list):
+    if not places:
+        return {"results": []}
+
+    prompt = f"""
+You are a helpful AI assistant for kids activities.
+
+User question:
+{user_question}
+
+Here are real place results:
+{json.dumps(places, indent=2)}
+
+Return ONLY valid JSON in this format:
+{{
+  "results": [
+    {{
+      "name": "string",
+      "website": "string",
+      "reason": "short kid-friendly explanation"
+    }}
+  ]
+}}
+
+Rules:
+- Use only the places provided
+- Do not invent new businesses
+- Keep each reason to one short sentence
+- Focus on why it may fit families or kids
+- If address is available, you may mention it briefly
+- Preserve website exactly as given
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4.1",
+        messages=[
+            {"role": "system", "content": "Return only valid JSON."},
+            {"role": "user", "content": prompt},
+        ],
+        temperature=0.3,
+        max_tokens=500,
+        response_format={"type": "json_object"},
+    )
+
+    content = response.choices[0].message.content or '{"results": []}'
+    try:
+        return json.loads(content)
+    except Exception:
+        return {"results": places}
+
+    #return json.loads(content)
+
 @router.post("/chat")
+
 async def chat(request: ChatRequest):
+    places = search_places(request.question, max_results=3)
+    
+
+    if places:
+        ai_answer = explain_places_with_ai(request.question, places)
+        return {"answer": ai_answer}
+    
+
     messages = [
         {
             "role": "system",
-           "content": (
-    "You are an AI assistant for kids activities and family-friendly local events. "
-    "Give short, specific, practical answers. "
-    "Prioritize nearby options, age-appropriate suggestions, and clear recommendations. "
-    "Do not give broad generic advice. "
-    "When possible, organize the answer as:\n"
-    "1. Best options\n"
-    "2. Why they fit\n"
-    "3. Helpful next step\n"
-    "If the user asks about a type of activity, answer directly with concrete examples."
-),
+            "content": """Return ONLY valid JSON.
+
+Format:
+{
+  "results": [
+    {
+      "name": "string",
+      "website": "string",
+      "reason": "string"
+    }
+  ]
+}
+
+Rules:
+- Include real businesses
+- Only include official business websites
+- Do NOT include blogs, news, or aggregator sites
+- If unsure about website, return empty string ""
+- No extra text outside JSON
+"""
         },
         {"role": "user", "content": request.question},
     ]
@@ -37,11 +144,14 @@ async def chat(request: ChatRequest):
         model="gpt-4.1",
         messages=messages,
         tools=tools,
-        temperature=0.3, 
+        temperature=0.3,
+        max_tokens=700,
+        response_format={"type": "json_object"},
     )
 
     message = response.choices[0].message
 
+    # handle tool calls
     if message.tool_calls:
         messages.append(message)
 
@@ -68,7 +178,61 @@ async def chat(request: ChatRequest):
             model="gpt-4.1",
             messages=messages,
             temperature=0.3,
+            max_tokens=700,
+            response_format={"type": "json_object"},
         )
 
+    # extract response
     answer = response.choices[0].message.content or "Sorry, I couldn't generate a response."
-    return {"answer": answer}
+
+    # parse + clean
+    try:
+        parsed = json.loads(answer)
+
+        clean_results = []
+
+        blocked_domains = [
+            "mummytravels",
+            "secret",
+            "tripadvisor",
+            "yelp",
+            "resultsfinder",
+            "blog",
+            "news",
+        ]
+
+        for place in parsed.get("results", []):
+            website = place.get("website", "").strip()
+
+            if website and not website.startswith(("http://", "https://")):
+                website = "https://" + website
+
+            # remove bad/aggregator links
+            if any(bad in website.lower() for bad in blocked_domains):
+                website = ""
+
+            # validate real sites
+            elif is_valid_website(website):
+                place["website"] = website
+            else:
+                website = ""
+                place["website"] = ""
+
+            clean_results.append(place)
+
+        parsed["results"] = clean_results
+
+        return {"answer": parsed}
+
+    except Exception:
+        return {
+            "answer": {
+                "results": [
+                    {
+                        "name": "No structured results",
+                        "website": "",
+                        "reason": answer
+                    }
+                ]
+            }
+        }

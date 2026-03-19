@@ -1,6 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.routers import ingest, news, chat, rag
+from app.routers import news, chat
 
 app = FastAPI(title="Kids Activity Runner API", version="1.0.0")
 
@@ -18,10 +18,9 @@ app.add_middleware(
 )
 
 # registering the routers in main
-app.include_router(ingest.router, prefix="/api", tags=["ingest"])
-app.include_router(news.router, prefix="/api", tags=["news"])
 app.include_router(chat.router, prefix="/api", tags=["chat"])
-app.include_router(rag.router, prefix="/api", tags=["rag"])
+app.include_router(news.router, prefix="/api", tags=["news"])
+
 
 
 @app.get("/health")
