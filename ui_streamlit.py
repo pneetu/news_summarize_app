@@ -13,7 +13,7 @@ st.set_page_config(page_title="Kids Activity Runner", layout="wide")
        # "API_BASE_URL",
         #"https://kids-activity-runner-api1.onrender.com"
     #)
-API_BASE_URL = "https://kids-activity-runner-api.onrender.com"
+API_BASE_URL = "https://kids-activity-runner.onrender.com"
 
 
 st.markdown(

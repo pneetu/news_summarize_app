@@ -2,6 +2,7 @@ from dotenv import load_dotenv
 load_dotenv()
 
 import feedparser
+import requests
 from openai import OpenAI
 
 FEEDS = [
@@ -14,19 +15,31 @@ MAX_ARTICLES = 10
 
 client = OpenAI()
 
+HEADERS = {
+    "User-Agent": "Mozilla/5.0"
+}
+
 
 def fetch_activity_items():
     items = []
 
     for url in FEEDS:
-        feed = feedparser.parse(url)
-        for entry in feed.entries:
-            title = getattr(entry, "title", "").strip()
-            link = getattr(entry, "link", "").strip()
-            published = getattr(entry, "published", "").strip()
+        try:
+            response = requests.get(url, headers=HEADERS, timeout=15)
+            response.raise_for_status()
 
-            if title and link:
-                items.append((title, link, published))
+            feed = feedparser.parse(response.content)
+
+            for entry in feed.entries:
+                title = getattr(entry, "title", "").strip()
+                link = getattr(entry, "link", "").strip()
+                published = getattr(entry, "published", "").strip()
+
+                if title and link:
+                    items.append((title, link, published))
+        except Exception as e:
+            print(f"Failed to fetch feed {url}: {e}")
+            continue
 
     seen = set()
     unique = []
@@ -40,8 +53,12 @@ def fetch_activity_items():
 
 
 def summarize_activity_titles(titles):
+    if not titles:
+        return "No recent activity articles were found."
+
     prompt = (
-        "Summarize these kids activities and family-friendly events. Prefer activities near the user's area if a location is mentioned.\n\n"
+        "Summarize these kids activities and family-friendly events. "
+        "Prefer activities near the user's area if a location is mentioned.\n\n"
         + "\n".join([f"- {t}" for t in titles])
     )
 
@@ -50,7 +67,10 @@ def summarize_activity_titles(titles):
         messages=[
             {
                 "role": "system",
-                "content": "You summarize kids activities and family-friendly local events clearly. Highlight variety, location, and why the activity may be good for children."
+                "content": (
+                    "You summarize kids activities and family-friendly local events clearly. "
+                    "Highlight variety, location, and why the activity may be good for children."
+                ),
             },
             {"role": "user", "content": prompt},
         ],
@@ -62,8 +82,6 @@ def summarize_activity_titles(titles):
 
 def get_activity_data(limit: int = 10, include_summary: bool = True):
     activities = fetch_activity_items()[:limit]
-    titles = [t for (t, _, _) in activities]
-    summary = summarize_activity_titles(titles) if include_summary else ""
 
     articles = []
     for title, link, published in activities:
@@ -74,6 +92,15 @@ def get_activity_data(limit: int = 10, include_summary: bool = True):
                 "published": published,
             }
         )
+
+    if not activities:
+        return {
+            "articles": [],
+            "summary": "No recent activity articles were found."
+        }
+
+    titles = [t for (t, _, _) in activities]
+    summary = summarize_activity_titles(titles) if include_summary else ""
 
     return {"articles": articles, "summary": summary}
 
@@ -87,7 +114,11 @@ def chat_activity_assistant(question: str) -> str:
         messages=[
             {
                 "role": "system",
-                "content": "You help parents and families find kids activities, local events, and family-friendly outings. Give practical, clear suggestions and prefer nearby options when a location is mentioned."
+                "content": (
+                    "You help parents and families find kids activities, local events, "
+                    "and family-friendly outings. Give practical, clear suggestions and "
+                    "prefer nearby options when a location is mentioned."
+                ),
             },
             {"role": "user", "content": question},
         ],
@@ -104,7 +135,7 @@ def main():
         return
 
     print("\n==============================")
-    print("📰 Latest Activities near your area")
+    print("Latest Activities near your area")
     print("==============================\n")
 
     for i, (title, link, published) in enumerate(activities, 1):
@@ -115,7 +146,7 @@ def main():
     titles = [t for (t, _, _) in activities]
 
     print("\n==============================")
-    print("🤖 Kids Activities Summary")
+    print("Kids Activities Summary")
     print("==============================\n")
     summary = summarize_activity_titles(titles)
     print(summary)
