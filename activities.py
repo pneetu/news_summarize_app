@@ -29,6 +29,8 @@ def fetch_activity_items():
             response.raise_for_status()
 
             feed = feedparser.parse(response.content)
+            print("Fetching feed:", url)
+            print("Entries found:", len(feed.entries))
 
             for entry in feed.entries:
                 title = getattr(entry, "title", "").strip()
